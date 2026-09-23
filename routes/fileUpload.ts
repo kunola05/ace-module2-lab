@@ -26,12 +26,13 @@ function ensureFileIsPassed ({ file }: Request, res: Response, next: NextFunctio
 
 async function extractZipBuffer (buffer: Buffer) {
   const directory = await unzipper.Open.buffer(buffer)
+  const targetDir = path.resolve('uploads/complaints')
   for (const entry of directory.files) {
     const fileName = entry.path
-    const absolutePath = path.resolve('uploads/complaints/' + fileName)
+    const absolutePath = path.resolve(targetDir, fileName)
     challengeUtils.solveIf(challenges.fileWriteChallenge, () => { return absolutePath === path.resolve('ftp/legal.md') })
-    if (absolutePath.includes(path.resolve('.'))) {
-      await pipeline(entry.stream(), fs.createWriteStream('uploads/complaints/' + fileName))
+    if (absolutePath.startsWith(targetDir)) {
+      await pipeline(entry.stream(), fs.createWriteStream(absolutePath))
     }
   }
 }
@@ -106,7 +107,7 @@ function handleYamlUpload ({ file }: Request, res: Response, next: NextFunction)
       try {
         const sandbox = { yaml, data }
         vm.createContext(sandbox)
-        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data))', sandbox, { timeout: 2000 })
+        const yamlString = vm.runInContext('JSON.stringify(yaml.load(data, { schema: yaml.FAILSAFE_SCHEMA }))', sandbox, { timeout: 2000 })
         res.status(410)
         next(new Error('B2B customer complaints via file upload have been deprecated for security reasons: ' + utils.trunc(yamlString, 400) + ' (' + file.originalname + ')'))
       } catch (err: unknown) {
